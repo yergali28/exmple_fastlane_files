@@ -1,0 +1,69 @@
+# # This file contains the fastlane.tools configuration
+# # You can find the documentation at https://docs.fastlane.tools
+# #
+# # For a list of all available actions, check out
+# #
+# #     https://docs.fastlane.tools/actions
+# #
+# # For a list of all available plugins, check out
+# #
+# #     https://docs.fastlane.tools/plugins/available-plugins
+# #
+
+# # Uncomment the line if you want fastlane to automatically update itself
+# # update_fastlane
+
+default_platform :android
+
+platform :android do
+    before_all do
+       # mvp_weather_test channel
+       ENV["SLACK_URL"] = "Здесь должна быть webhook ссылка на слак чат"
+    end
+
+
+   lane :slackbuild do
+   gradle(
+     task: "assemble",
+     build_type: "debug",
+     flavor: "toTest",
+
+     print_command: false,
+
+     # Jks file дефолтовый для всех приложении компании, сборка будет подписана указанным ключем  
+     properties: {
+        "android.injected.signing.store.file" => "sp_test.jks",
+        "android.injected.signing.store.password" => "123456",
+        "android.injected.signing.key.alias" => "test",
+        "android.injected.signing.key.password" => "123456"
+    }
+   )
+
+  upload_to_slack()
+  version_name = get_version_name(gradle_file_path:"presentation/build.gradle", ext_constant_name:"versionName")
+
+  build_number = increment_version_code + 1 #change dev version code when you do release
+    url = lane_context[SharedValues::UPLOADED_FILE_LINK_TO_DIAWI]
+    slack(
+      message: "*Weather Android Test*\nVersion name: #{version_name}\nBuild number: #{build_number}\nURL: #{url}",
+      default_payloads: []
+    )
+	end
+
+
+    private_lane :upload_to_slack do |options|
+        full_file_path = lane_context[SharedValues::GRADLE_APK_OUTPUT_PATH]
+        file_name = full_file_path.gsub(/\/.*\//,"")
+        diawi(
+    		token: "Здесь должен быть diawi токен",
+    		file: full_file_path
+    		)
+    end
+
+    error do |lane, exception|
+    slack(
+      message: exception.message,
+      success: false
+    )
+  end
+end
